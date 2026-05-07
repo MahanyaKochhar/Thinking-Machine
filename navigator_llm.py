@@ -1,7 +1,12 @@
 import os
 import json
 from typing import Optional
+
+from dotenv import load_dotenv
 from openai import OpenAI
+
+
+load_dotenv()
 
 
 class LLMResponse:
@@ -17,20 +22,29 @@ class NavigatorLLM:
     - `with_structured_output(model_cls)` returning an object with
       `invoke(prompt)` that parses JSON into the provided Pydantic model.
 
-    The API key and endpoint are read from environment variables with
-    placeholders so you can provide the real key later:
-      - `NAVIGATOR_API_KEY` (or fallback placeholder)
-      - `NAVIGATOR_API_ENDPOINT` (defaults to a sensible placeholder)
+        The API key, endpoint, and model are read from environment variables with
+        no hardcoded secrets or model defaults:
+      - `NAVIGATOR_API_KEY`
+      - `NAVIGATOR_API_ENDPOINT`
+      - `NAVIGATOR_MODEL`
     """
 
-    def __init__(self, api_key: Optional[str] = None, endpoint: Optional[str] = None, model: str = "gpt-oss-120b", temperature: float = 0.0) -> None:
-        self.api_key = api_key or os.getenv("NAVIGATOR_API_KEY", "sk-xE0Rr9g90uCYm8pX1C7uEQ")
-        base_url = endpoint or os.getenv("NAVIGATOR_API_ENDPOINT", "https://api.ai.it.ufl.edu")
+    def __init__(self, temperature: Optional[float] = None) -> None:
+        self.api_key = os.getenv("NAVIGATOR_API_KEY")
+        if not self.api_key:
+            raise ValueError("NAVIGATOR_API_KEY is required.")
+
+        base_url = os.getenv("NAVIGATOR_API_ENDPOINT")
+        if not base_url:
+            raise ValueError("NAVIGATOR_API_ENDPOINT is required.")
         # Remove /v1/chat/completions if present to get base URL
         if base_url.endswith("/v1/chat/completions"):
             base_url = base_url.replace("/v1/chat/completions", "")
-        self.model = model
-        self.temperature = temperature
+        self.model = os.getenv("NAVIGATOR_MODEL")
+        if not self.model:
+            raise ValueError("NAVIGATOR_MODEL is required.")
+
+        self.temperature = 0.0 if temperature is None else temperature
         self.client = OpenAI(api_key=self.api_key, base_url=base_url)
 
     def _call_api(self, prompt: str) -> str:
@@ -65,4 +79,4 @@ class StructuredNavigatorLLM:
 
 
 def get_llm() -> NavigatorLLM:
-    return NavigatorLLM(temperature=0)
+    return NavigatorLLM()

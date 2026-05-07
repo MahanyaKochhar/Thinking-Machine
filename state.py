@@ -12,10 +12,20 @@ class ClarityClassification(BaseModel):
     )
 
 
+class ComplexityAssessment(BaseModel):
+    rating: Literal["low", "medium", "high"] = Field(
+        description="Overall complexity rating for the question and its sub-questions."
+    )
+    reason: str = Field(
+        description="A concise explanation for the assigned complexity rating."
+    )
+
+
 class ThinkingMachineState(TypedDict, total=False):
-    input_question: list[str]
+    input_question: str
     restated_question: str
     classification: ClarityClassification
     clarifying_question: str
     sub_questions: list[str]
+    overall_complexity: ComplexityAssessment
     sub_question_responses: list[str]
