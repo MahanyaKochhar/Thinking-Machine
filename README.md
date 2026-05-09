@@ -53,7 +53,8 @@ flowchart TB
 
 - Uses `Command(goto=...)`-based dynamic routing between nodes.
 - Uses `interrupt(...)` in `human_review_node` to pause execution and collect one user clarification response.
-- Uses `MemorySaver` checkpointing with a thread id in `main.py` to support pause/resume in one session.
+- Uses `MemorySaver` checkpointing with a thread id in `main.py` to support pause/resume in one CLI session.
+- Uses LangGraph API's built-in persistence when running with `langgraph dev`.
 - Uses structured outputs for:
 	- Clarity classification (`ClarityClassification`)
 	- Complexity assessment (`ComplexityAssessment`)
@@ -67,15 +68,21 @@ flowchart TB
 pip install -r requirements.txt
 ```
 
-3. Configure environment variables:
+3. Configure environment variables in `.env`:
 
 ```bash
+# Navigator LLM credentials
 NAVIGATOR_API_KEY=...
 NAVIGATOR_API_ENDPOINT=...
 NAVIGATOR_MODEL=...
+
+# LangGraph Studio / LangSmith
+LANGSMITH_API_KEY=...
 ```
 
-You can place these in a `.env` file (loaded via `python-dotenv`).
+The CLI path (`python main.py`) loads `.env` through `python-dotenv`. The LangGraph dev server loads the same file because `langgraph.json` contains `"env": ".env"`.
+
+`LANGSMITH_API_KEY` is required for LangGraph Studio and LangSmith tracing.
 
 ## Run
 
@@ -95,8 +102,8 @@ Yes, you can host this agent as a local server! Use **`langgraph dev`** to run t
 
 ### Prerequisites
 
-- LangSmith account (free to sign up at https://smith.langchain.com)
-- LangSmith API key (set as `LANGSMITH_API_KEY` environment variable)
+- LangSmith account
+- LangSmith API key in `.env` as `LANGSMITH_API_KEY=...`
 - `langgraph-cli[inmem]` installed (added to `requirements.txt`)
 
 ### Install LangGraph CLI
@@ -112,6 +119,7 @@ pip install -r requirements.txt
 Run the development server:
 
 ```bash
+source .venv/bin/activate
 langgraph dev
 ```
 
@@ -179,25 +187,6 @@ curl -s --request POST \
 - **Built-in debugging**: Attach IDE debugger for line-level breakpoints
 - **Fast iteration**: Optimized for development speed
 
-### Production-like Testing
-
-When you're ready to validate against production behavior, use `langgraph up` (requires Docker):
-
-```bash
-langgraph up
-```
-
-This spins up PostgreSQL, Redis, and a production-like Agent Server stack on port 8123.
-
-### Deploy to LangSmith Cloud or Self-Hosted
-
-Once tested locally, deploy via the LangSmith UI or CLI:
-
-```bash
-langgraph deploy
-```
-
-For more details, see the [LangGraph Deployment guide](https://docs.langchain.com/oss/python/langgraph/deploy).
 
 ## Status
 
