@@ -1,4 +1,6 @@
+import operator
 from typing import Literal, TypedDict
+from typing_extensions import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -28,4 +30,6 @@ class ThinkingMachineState(TypedDict, total=False):
     clarifying_question: str
     sub_questions: list[str]
     overall_complexity: ComplexityAssessment
-    sub_question_responses: list[str]
+    sub_question: str
+    sub_question_responses: Annotated[list[str], operator.add]
+    final_answer: str

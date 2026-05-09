@@ -1,5 +1,5 @@
 from navigator_llm import get_llm
-from langgraph.types import Command, interrupt
+from langgraph.types import Command, Send, interrupt
 from langgraph.graph import END
 from concurrent.futures import ThreadPoolExecutor
 
@@ -162,14 +162,30 @@ def assess_complexity_node(state: ThinkingMachineState) -> Command:
     structured_llm = get_llm().with_structured_output(ComplexityAssessment)
     assessment = structured_llm.invoke(prompt)
 
+    # Fan-out: create a Send for each sub-question so each is handled
+    # by the `answer_sub_question` node. After scheduling all sends,
+    # continue to `aggregate_answers` to synthesise a final response.
+    sends = [Send("answer_sub_question", {"sub_question": sq}) for sq in sub_questions]
+
+
     return Command(
         update={"overall_complexity": assessment},
-        goto="sub_question_answerer",
+        goto=sends,
     )
 
 
-def _answer_sub_question(sub_question: str, restated_question: str) -> str:
-    """Answer one sub-question using the current restated question context."""
+def answer_sub_question_node(state: ThinkingMachineState) -> Command:
+    """Answer a single sub-question. Expects `sub_question` and
+    `restated_question` to be provided in the incoming task payload (via Send.arg).
+
+    Appends the concise answer to the `sub_question_responses` list in state.
+    """
+    sub_question = state.get("sub_question") or state.get("__root__")
+    restated_question = state.get("restated_question", "").strip()
+
+    if not sub_question:
+        raise ValueError("answer_sub_question_node requires a 'sub_question' in the task payload.")
+
     prompt = (
         f"Answer this sub-question using only the context of the restated question. "
         f"Do not introduce new assumptions beyond what is implied by the question. "
@@ -179,29 +195,37 @@ def _answer_sub_question(sub_question: str, restated_question: str) -> str:
     )
 
     response = get_llm().invoke(prompt)
-    return response.content.strip()
+    answer = response.content.strip()
+    return Command(update={"sub_question_responses": [answer]}, goto="aggregate_answers")
 
 
-def sub_question_answerer_node(state: ThinkingMachineState) -> Command:
-    """Answer each generated sub-question in parallel and store the responses."""
+def aggregate_answers_node(state: ThinkingMachineState) -> Command:
+    """Aggregate all sub-question answers and synthesise a final answer."""
     restated_question = state.get("restated_question", "").strip()
     sub_questions = state.get("sub_questions", [])
+    responses = state.get("sub_question_responses", [])
 
     if not restated_question:
-        raise ValueError("restated_question is required for sub-question answering.")
+        raise ValueError("aggregate_answers_node requires restated_question in state.")
 
-    if not sub_questions:
-        raise ValueError("sub_questions are required for sub-question answering.")
+    if not responses:
+        raise ValueError("No sub-question responses available to aggregate.")
 
-    with ThreadPoolExecutor(max_workers=min(8, len(sub_questions))) as executor:
-        sub_question_responses = list(
-            executor.map(
-                lambda sub_question: _answer_sub_question(sub_question, restated_question),
-                sub_questions,
-            )
-        )
+    if len(responses) < len(sub_questions):
+        return Command(goto=END)
 
-    return Command(
-        update={"sub_question_responses": sub_question_responses},
-        goto=END,
+    prompt = (
+        f"You are given a restated user question and a list of concise answers to its sub-questions. "
+        f"Synthesize a single, coherent final answer that directly addresses the user's intent, "
+        f"drawing only from the provided sub-question answers. Keep it concise and actionable.\n\n"
+        f"Restated question: {restated_question}\n\n"
+        f"Sub-question answers:\n" + "\n".join(f"- {r}" for r in responses)
     )
+
+    response = get_llm().invoke(prompt)
+    final_answer = response.content.strip()
+
+    return Command(update={"final_answer": final_answer}, goto=END)
+
+
+
