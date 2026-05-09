@@ -3,3 +3,4 @@ langchain-openai
 pydantic
 requests
 python-dotenv
+langgraph-cli[inmem]

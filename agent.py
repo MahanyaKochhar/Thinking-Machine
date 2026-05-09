@@ -15,7 +15,7 @@ from nodes import (
 from state import ThinkingMachineState
 
 
-def build_graph():
+def build_graph(checkpointer=None):
     graph = StateGraph(ThinkingMachineState)
 
     graph.add_node("user_question", user_question_node)
@@ -32,9 +32,11 @@ def build_graph():
     graph.add_edge("user_question", "restate_question")
     graph.add_edge("aggregate_answers", END)
 
-    # Compile with MemorySaver for checkpointing
-    memory_saver = MemorySaver()
-    return graph.compile(checkpointer=memory_saver)
+    return graph.compile(checkpointer=checkpointer)
+
+
+def build_local_graph():
+    return build_graph(checkpointer=MemorySaver())
 
 
 agent = build_graph()

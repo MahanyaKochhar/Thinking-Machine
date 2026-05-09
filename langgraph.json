@@ -1,0 +1,10 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "thinking_machine": {
+      "path": "./agent.py:agent",
+      "name": "Thinking Machine Agent"
+    }
+  },
+  "env": ".env"
+}
