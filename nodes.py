@@ -120,7 +120,7 @@ def decompose_question_node(state: ThinkingMachineState) -> ThinkingMachineState
         raise ValueError("restated_question is required for decomposition.")
     
     prompt = (
-        f"Break down this question into specific sub-questions."
+        f"Break down this question into the least number of specific sub-questions."
         f"Each sub-question must be directly derived from and stay within "
         f"the context of this question only. Do not introduce new topics or external context. "
         f"Return only the sub-questions, one per line.\n\n"

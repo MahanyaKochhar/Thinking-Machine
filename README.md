@@ -1,18 +1,24 @@
-# Thinking Machine (Draft 1)
+# Thinking Machine
 
-Conversational reasoning agent built with LangGraph. It takes a user question and routes it through a visible reasoning workflow before producing a final answer.
+Conversational reasoning agent built with LangGraph. It accepts a raw text question from a user and routes it through a visible, structured reasoning workflow before producing a final answer. The agent is designed to never jump straight to the answer: every question must pass through restatement, clarity checking, decomposition, complexity assessment, sub-question reasoning, and final synthesis.
 
 ## What This Project Is
 
-This draft implements a node-based reasoning pipeline:
-- Input question capture
+This draft implements a node-based reasoning pipeline for questions that require explicit intermediate thinking. The agent first restates the user's question in its own words to confirm what it understood, then decides whether the question is clear enough to reason through or too vague to answer responsibly.
+
+If the question is vague, the agent generates exactly one focused clarifying question, surfaces it to the user, and pauses. When the user responds, the agent resumes the same reasoning workflow with the enriched input instead of discarding the prior context or jumping directly to the answer.
+
+If the question is clear, the agent decomposes it into the smallest set of sub-questions needed to fully answer it, assesses the overall complexity of the request, works through each sub-question individually, and synthesizes the sub-answers into one coherent final response.
+
+The steps are:
+- Raw question intake
 - Restatement of user intent
-- Clarity classification (clear vs vague)
-- Clarifying question generation when needed
+- Clarity assessment (clear vs vague)
+- Exactly one clarifying question when clarification is needed
 - Human-in-the-loop pause/resume for clarification
-- Question decomposition into sub-questions
+- Question decomposition into the smallest necessary sub-question set
 - Complexity assessment (low/medium/high)
-- Sub-question answering
+- Reasoned answers for each sub-question
 - Final synthesis
 
 ## Architecture
@@ -166,14 +172,68 @@ for chunk in client.runs.stream(
 
 ### Test via REST API (cURL)
 
+For interrupt/resume behavior, use a thread-backed run. A stream is expected to stop when the graph reaches `human_review_node`; the interrupt is the graph pausing for external input, not the server crashing.
+
+Create a thread:
+
 ```bash
 curl -s --request POST \
-	--url "http://localhost:2024/runs/stream" \
+	--url "http://localhost:2024/threads" \
+	--header 'Content-Type: application/json' \
+	--data '{}'
+```
+
+Copy the returned `thread_id`, then start the run on that thread:
+
+```bash
+curl -s --request POST \
+	--url "http://localhost:2024/threads/<THREAD_ID>/runs/wait" \
 	--header 'Content-Type: application/json' \
 	--data '{
 		"assistant_id": "thinking_machine",
 		"input": {
 			"input_question": "How do I make it faster?"
+		}
+	}'
+```
+
+If the question is vague, the response includes `__interrupt__` with a `clarifying_question`. Resume the same thread with the user's clarification:
+
+```bash
+curl -s --request POST \
+	--url "http://localhost:2024/threads/<THREAD_ID>/runs/wait" \
+	--header 'Content-Type: application/json' \
+	--data '{
+		"assistant_id": "thinking_machine",
+		"command": {
+			"resume": "I mean how can I make this Python function run faster?"
+		}
+	}'
+```
+
+To stream the events instead of waiting for the full response, use the same thread path with `/runs/stream` for both the initial call and the resume call:
+
+```bash
+curl -s --request POST \
+	--url "http://localhost:2024/threads/<THREAD_ID>/runs/stream" \
+	--header 'Content-Type: application/json' \
+	--data '{
+		"assistant_id": "thinking_machine",
+		"input": {
+			"input_question": "How do I make it faster?"
+		},
+		"stream_mode": "updates"
+	}'
+```
+
+```bash
+curl -s --request POST \
+	--url "http://localhost:2024/threads/<THREAD_ID>/runs/stream" \
+	--header 'Content-Type: application/json' \
+	--data '{
+		"assistant_id": "thinking_machine",
+		"command": {
+			"resume": "I mean how can I make this Python function run faster?"
 		},
 		"stream_mode": "updates"
 	}'
